@@ -4,6 +4,7 @@ import com.example.mytestapplication.domain.Priority
 import com.example.mytestapplication.domain.Todo
 import com.example.mytestapplication.domain.TodoContent
 import com.example.mytestapplication.domain.TodoFailure
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -12,6 +13,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
@@ -91,6 +93,43 @@ class InMemoryTodoRepositoryTest {
             repository.deleteTodo(42)
             fail("Expected missing task")
         } catch (_: TodoFailure.NotFound) { }
+    }
+
+    @Test
+    fun writeDuringInitialLoadIsIncludedInFirstSnapshot() = runTest {
+        val loadGate = CompletableDeferred<Unit>()
+        var requests = 0
+        val repository = InMemoryTodoRepository(FakeTodoApi(
+            latency = { if (++requests == 1) loadGate.await() },
+            shouldFail = { false },
+        ))
+        val load = async { repository.loadAllTodos().first() }
+        runCurrent()
+        assertFalse(load.isCompleted)
+
+        val created = repository.createTodo(TodoContent("Created during load"))
+        assertFalse(load.isCompleted)
+        loadGate.complete(Unit)
+
+        assertEquals(listOf(created), load.await())
+    }
+
+    @Test
+    fun savesTrimTitlesAndPreserveNotesAndReplacementFields() = runTest {
+        val repository = InMemoryTodoRepository(FakeTodoApi(latency = {}, shouldFail = { false }))
+        val created = repository.createTodo(TodoContent("  Task  ", "  Note  "))
+        assertEquals("Task", created.title)
+        assertEquals("  Note  ", created.note)
+
+        val edited = repository.editTodo(
+            created.id, TodoContent("  Edited  ", "  New note  ", Priority.HIGH, done = true),
+        )
+        assertEquals(created.id, edited.id)
+        assertEquals("Edited", edited.title)
+        assertEquals("  New note  ", edited.note)
+        assertEquals(Priority.HIGH, edited.priority)
+        assertTrue(edited.done)
+        assertEquals(listOf(edited), repository.loadAllTodos().first())
     }
 
     @Test(expected = IllegalArgumentException::class)

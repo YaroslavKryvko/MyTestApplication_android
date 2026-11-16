@@ -3,6 +3,9 @@
     <string name="todos">Todos</string>
     <string name="create">Create</string>
     <string name="no_todos">No todos yet</string>
+    <string name="no_matching_todos">No todos match this priority</string>
+    <string name="priority_filter">Filter: %1$s</string>
+    <string name="priority_all">All</string>
     <string name="network_error">Network error</string>
     <string name="retry">Retry</string>
     <string name="new_todo">New todo</string>

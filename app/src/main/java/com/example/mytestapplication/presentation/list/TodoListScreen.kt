@@ -13,6 +13,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -20,19 +22,22 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.mytestapplication.R
 import com.example.mytestapplication.domain.Priority
 import com.example.mytestapplication.domain.Todo
 import com.example.mytestapplication.presentation.labelResource
-import com.example.mytestapplication.ui.theme.MyTestApplicationTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,7 +53,13 @@ fun TodoListScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.todos)) },
-                actions = { TextButton(onClick = onCreate) { Text(stringResource(R.string.create)) } },
+                actions = {
+                    PriorityFilter(
+                        selectedPriority = state.selectedPriority,
+                        onPrioritySelected = { onAction(TodoListAction.FilterPriority(it)) },
+                    )
+                    TextButton(onClick = onCreate) { Text(stringResource(R.string.create)) }
+                },
             )
         },
     ) { padding ->
@@ -56,7 +67,7 @@ fun TodoListScreen(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentAlignment = Alignment.Center,
         ) {
-            when (val content = state.content) {
+            when (state.content) {
                 TodoListContent.Loading -> CircularProgressIndicator()
                 TodoListContent.Error -> Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -67,15 +78,17 @@ fun TodoListScreen(
                         Text(stringResource(R.string.retry))
                     }
                 }
-                is TodoListContent.Loaded -> if (content.todos.isEmpty()) {
-                    Text(stringResource(R.string.no_todos))
+                is TodoListContent.Loaded -> if (state.visibleTodos.isEmpty()) {
+                    Text(stringResource(
+                        if (state.selectedPriority == null) R.string.no_todos else R.string.no_matching_todos,
+                    ))
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                     ) {
-                        items(content.todos, key = { it.id }) { todo ->
+                        items(state.visibleTodos, key = { it.id }) { todo ->
                             TodoCard(
                                 todo = todo,
                                 enabled = todo.id !in state.pendingIds,
@@ -85,6 +98,33 @@ fun TodoListScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PriorityFilter(
+    selectedPriority: Priority?,
+    onPrioritySelected: (Priority?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = stringResource(selectedPriority?.labelResource() ?: R.string.priority_all)
+    Box(modifier = modifier) {
+        TextButton(onClick = { expanded = true }) {
+            Text(stringResource(R.string.priority_filter, selectedLabel))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            (listOf<Priority?>(null) + Priority.entries).forEach { priority ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(priority?.labelResource() ?: R.string.priority_all)) },
+                    modifier = Modifier.semantics { selected = priority == selectedPriority },
+                    onClick = {
+                        expanded = false
+                        onPrioritySelected(priority)
+                    },
+                )
             }
         }
     }
@@ -124,50 +164,5 @@ fun TodoCard(
                 modifier = Modifier.semantics { contentDescription = checkboxLabel },
             )
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun TodoListContentPreview() {
-    MyTestApplicationTheme {
-        TodoListScreen(
-            TodoListUiState(TodoListContent.Loaded(listOf(
-                Todo(1, "Plan the week", "", Priority.HIGH, false),
-                Todo(2, "Buy groceries", "", Priority.MEDIUM, true),
-                Todo(3, "Read a chapter", "", Priority.LOW, false),
-            ))),
-            {}, {}, {},
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun TodoListEmptyPreview() {
-    MyTestApplicationTheme {
-        TodoListScreen(TodoListUiState(TodoListContent.Loaded(emptyList())), {}, {}, {})
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun TodoListLoadingPreview() {
-    MyTestApplicationTheme { TodoListScreen(TodoListUiState(), {}, {}, {}) }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun TodoListErrorPreview() {
-    MyTestApplicationTheme {
-        TodoListScreen(TodoListUiState(TodoListContent.Error), {}, {}, {})
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun TodoCardPreview() {
-    MyTestApplicationTheme {
-        TodoCard(Todo(1, "Completed task", "", Priority.HIGH, true), true, {}, {})
     }
 }

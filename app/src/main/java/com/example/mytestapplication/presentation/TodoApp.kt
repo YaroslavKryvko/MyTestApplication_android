@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -20,6 +21,7 @@ import androidx.navigation.navArgument
 import com.example.mytestapplication.R
 import com.example.mytestapplication.domain.TodoRepository
 import com.example.mytestapplication.presentation.details.DetailsMessage
+import com.example.mytestapplication.presentation.details.DetailsOutcome
 import com.example.mytestapplication.presentation.details.TodoDetailsAction
 import com.example.mytestapplication.presentation.details.TodoDetailsScreen
 import com.example.mytestapplication.presentation.details.TodoDetailsViewModel
@@ -67,13 +69,18 @@ fun TodoApp(repository: TodoRepository) {
             }),
         ) { entry ->
             val id = entry.arguments?.getString("todoId")?.toLongOrNull()
+            val listEntry = remember(entry) { navController.getBackStackEntry("todos") }
+            val listModel: TodoListViewModel = viewModel(
+                viewModelStoreOwner = listEntry,
+                factory = viewModelFactory { initializer { TodoListViewModel(repository) } },
+            )
             val model: TodoDetailsViewModel = viewModel(factory = viewModelFactory {
                 initializer { TodoDetailsViewModel(repository, id) }
             })
             val state = model.state.collectAsStateWithLifecycle().value
             val context = LocalContext.current
             val lifecycle = LocalLifecycleOwner.current
-            LaunchedEffect(model, lifecycle) {
+            LaunchedEffect(model, lifecycle, listModel) {
                 lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                     model.state.collect { current ->
                         current.message?.let { message ->
@@ -84,8 +91,12 @@ fun TodoApp(repository: TodoRepository) {
                             Toast.makeText(context, resource, Toast.LENGTH_SHORT).show()
                             model.onAction(TodoDetailsAction.MessageShown)
                         }
-                        if (current.closeRequested) {
-                            model.onAction(TodoDetailsAction.CloseHandled)
+                        current.outcome?.let { outcome ->
+                            // Consume the retained result once, before returning to the list.
+                            model.onAction(TodoDetailsAction.OutcomeHandled)
+                            if (outcome == DetailsOutcome.TODO_CREATED) {
+                                listModel.onAction(TodoListAction.TodoCreated)
+                            }
                             navController.popBackStack()
                         }
                     }

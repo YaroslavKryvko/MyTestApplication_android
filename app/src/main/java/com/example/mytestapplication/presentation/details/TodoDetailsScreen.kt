@@ -17,6 +17,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -27,14 +29,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.mytestapplication.R
 import com.example.mytestapplication.domain.Priority
 import com.example.mytestapplication.presentation.labelResource
-import com.example.mytestapplication.ui.theme.MyTestApplicationTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,10 +50,15 @@ fun TodoDetailsScreen(
             TopAppBar(
                 title = { Text(stringResource(if (state.isNew) R.string.new_todo else R.string.edit_todo)) },
                 navigationIcon = {
-                    TextButton(
+                    IconButton(
                         onClick = { onAction(TodoDetailsAction.Back) },
                         enabled = !state.isBusy,
-                    ) { Text(stringResource(R.string.back)) }
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_arrow_back),
+                            contentDescription = stringResource(R.string.back),
+                        )
+                    }
                 },
                 actions = {
                     TextButton(
@@ -150,35 +156,5 @@ fun TodoDetailsScreen(
                 }
             },
         )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun NewTodoPreview() {
-    MyTestApplicationTheme { TodoDetailsScreen(TodoDetailsUiState(isNew = true), {}) }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun EditTodoPreview() {
-    MyTestApplicationTheme {
-        TodoDetailsScreen(
-            TodoDetailsUiState(
-                isNew = false,
-                title = "Plan the week",
-                note = "Choose three things to focus on.",
-                priority = Priority.HIGH,
-            ),
-            {},
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun TodoDetailsErrorPreview() {
-    MyTestApplicationTheme {
-        TodoDetailsScreen(TodoDetailsUiState(isNew = false, status = DetailsStatus.NETWORK_ERROR), {})
     }
 }

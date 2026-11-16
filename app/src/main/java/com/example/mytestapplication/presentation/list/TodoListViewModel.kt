@@ -2,6 +2,7 @@ package com.example.mytestapplication.presentation.list
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mytestapplication.domain.Priority
 import com.example.mytestapplication.domain.Todo
 import com.example.mytestapplication.domain.TodoContent
 import com.example.mytestapplication.domain.TodoFailure
@@ -22,10 +23,19 @@ data class TodoListUiState(
     val content: TodoListContent = TodoListContent.Loading,
     val pendingIds: Set<Long> = emptySet(),
     val showSaveError: Boolean = false,
-)
+    val selectedPriority: Priority? = null,
+) {
+    val visibleTodos: List<Todo>
+        get() {
+            val todos = (content as? TodoListContent.Loaded)?.todos.orEmpty()
+            return selectedPriority?.let { priority -> todos.filter { it.priority == priority } } ?: todos
+        }
+}
 
 sealed interface TodoListAction {
     data object Retry : TodoListAction
+    data object TodoCreated : TodoListAction
+    data class FilterPriority(val priority: Priority?) : TodoListAction
     data class SetDone(val id: Long, val done: Boolean) : TodoListAction
     data object ErrorShown : TodoListAction
 }
@@ -42,6 +52,10 @@ class TodoListViewModel(private val repository: TodoRepository) : ViewModel() {
     fun onAction(action: TodoListAction) {
         when (action) {
             TodoListAction.Retry -> if (state.value.content is TodoListContent.Error) load()
+            TodoListAction.TodoCreated -> load()
+            is TodoListAction.FilterPriority -> mutableState.update {
+                it.copy(selectedPriority = action.priority)
+            }
             is TodoListAction.SetDone -> setDone(action)
             TodoListAction.ErrorShown -> mutableState.update { it.copy(showSaveError = false) }
         }

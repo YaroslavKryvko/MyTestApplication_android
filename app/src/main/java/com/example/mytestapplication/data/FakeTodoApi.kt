@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.milliseconds
 
 internal data class TodoDto(
     val id: Long,
@@ -22,7 +23,7 @@ internal class MissingTodoException : Exception()
 
 /** Process-only fake server. Hooks make latency and failures deterministic in tests. */
 internal class FakeTodoApi(
-    private val latency: suspend () -> Unit = { delay(Random.nextLong(300, 801)) },
+    private val latency: suspend () -> Unit = { delay(Random.nextLong(300, 801).milliseconds) },
     private val shouldFail: () -> Boolean = { Random.nextDouble() < 0.15 },
 ) {
     private val todos = MutableStateFlow<List<TodoDto>>(emptyList())

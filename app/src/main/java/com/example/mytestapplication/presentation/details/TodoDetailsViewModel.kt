@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 
 enum class DetailsStatus { LOADING, READY, NETWORK_ERROR, NOT_FOUND }
 enum class DetailsMessage { SAVE_ERROR, DELETE_ERROR }
+enum class DetailsOutcome { TODO_CREATED, RETURN_TO_LIST }
 
 data class TodoDetailsUiState(
     val isNew: Boolean,
@@ -26,10 +27,10 @@ data class TodoDetailsUiState(
     val isDirty: Boolean = false,
     val showDiscardDialog: Boolean = false,
     val message: DetailsMessage? = null,
-    val closeRequested: Boolean = false,
+    val outcome: DetailsOutcome? = null,
 ) {
     val canSave: Boolean
-        get() = status == DetailsStatus.READY && title.isNotBlank() && !isBusy && !closeRequested
+        get() = status == DetailsStatus.READY && title.isNotBlank() && !isBusy && outcome == null
 }
 
 sealed interface TodoDetailsAction {
@@ -43,7 +44,7 @@ sealed interface TodoDetailsAction {
     data object ConfirmDiscard : TodoDetailsAction
     data object KeepEditing : TodoDetailsAction
     data object MessageShown : TodoDetailsAction
-    data object CloseHandled : TodoDetailsAction
+    data object OutcomeHandled : TodoDetailsAction
 }
 
 class TodoDetailsViewModel(
@@ -71,23 +72,27 @@ class TodoDetailsViewModel(
             TodoDetailsAction.Save -> save()
             TodoDetailsAction.Delete -> delete()
             TodoDetailsAction.Retry -> if (state.value.status == DetailsStatus.NETWORK_ERROR) load()
-            TodoDetailsAction.Back -> if (!state.value.isBusy) {
+            TodoDetailsAction.Back -> if (!state.value.isBusy && state.value.outcome == null) {
                 mutableState.update {
                     if (it.isDirty) it.copy(showDiscardDialog = true)
-                    else it.copy(closeRequested = true)
+                    else it.copy(outcome = DetailsOutcome.RETURN_TO_LIST)
                 }
             }
             TodoDetailsAction.ConfirmDiscard -> mutableState.update {
-                it.copy(showDiscardDialog = false, closeRequested = true)
+                it.copy(showDiscardDialog = false, outcome = DetailsOutcome.RETURN_TO_LIST)
             }
             TodoDetailsAction.KeepEditing -> mutableState.update { it.copy(showDiscardDialog = false) }
             TodoDetailsAction.MessageShown -> mutableState.update { it.copy(message = null) }
-            TodoDetailsAction.CloseHandled -> mutableState.update { it.copy(closeRequested = false) }
+            TodoDetailsAction.OutcomeHandled -> mutableState.update {
+                it.copy(outcome = null)
+            }
         }
     }
 
     private fun edit(transform: TodoDetailsUiState.() -> TodoDetailsUiState) {
-        if (state.value.isBusy || state.value.status != DetailsStatus.READY) return
+        if (state.value.isBusy || state.value.outcome != null ||
+            state.value.status != DetailsStatus.READY
+        ) return
         mutableState.update { current ->
             val edited = current.transform()
             val baseline = original
@@ -108,6 +113,8 @@ class TodoDetailsViewModel(
             try {
                 val todo = repository.loadAllTodos().first().firstOrNull { it.id == todoId }
                 if (todo == null) {
+                    // After process death, navigation may restore this ID, but the in-memory
+                    // repository starts empty, so the previously opened to-do cannot be found.
                     mutableState.update { it.copy(status = DetailsStatus.NOT_FOUND) }
                 } else {
                     original = TodoContent(todo.title, todo.note, todo.priority, todo.done)
@@ -130,29 +137,39 @@ class TodoDetailsViewModel(
     private fun save() {
         val snapshot = state.value
         if (!snapshot.canSave) return
-        mutate(DetailsMessage.SAVE_ERROR) {
+        val outcome = if (todoId == null) DetailsOutcome.TODO_CREATED else DetailsOutcome.RETURN_TO_LIST
+        mutate(DetailsMessage.SAVE_ERROR, outcome) {
             val content = TodoContent(
-                snapshot.title.trim(), snapshot.note, snapshot.priority, snapshot.done,
+                snapshot.title, snapshot.note, snapshot.priority, snapshot.done,
             )
-            if (todoId == null) repository.createTodo(content)
-            else repository.editTodo(todoId, content)
+            if (todoId == null) {
+                repository.createTodo(content)
+            } else {
+                repository.editTodo(todoId, content)
+            }
         }
     }
 
     private fun delete() {
-        if (todoId == null || state.value.isBusy || state.value.closeRequested ||
+        if (todoId == null || state.value.isBusy || state.value.outcome != null ||
             state.value.status != DetailsStatus.READY
         ) return
-        mutate(DetailsMessage.DELETE_ERROR) { repository.deleteTodo(todoId) }
+        mutate(DetailsMessage.DELETE_ERROR, DetailsOutcome.RETURN_TO_LIST) {
+            repository.deleteTodo(todoId)
+        }
     }
 
-    private fun mutate(error: DetailsMessage, operation: suspend () -> Unit) {
+    private fun mutate(
+        error: DetailsMessage,
+        outcome: DetailsOutcome,
+        operation: suspend () -> Unit,
+    ) {
         mutableState.update { it.copy(isBusy = true) }
         viewModelScope.launch {
             try {
                 operation()
                 // Retained until the route handles navigation, including across lifecycle gaps.
-                mutableState.update { it.copy(isBusy = false, isDirty = false, closeRequested = true) }
+                mutableState.update { it.copy(isBusy = false, isDirty = false, outcome = outcome) }
             } catch (_: TodoFailure) {
                 mutableState.update { it.copy(isBusy = false, message = error) }
             }

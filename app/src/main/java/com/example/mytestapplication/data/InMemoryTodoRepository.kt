@@ -18,20 +18,22 @@ internal class InMemoryTodoRepository(private val api: FakeTodoApi) : TodoReposi
         }
 
     override suspend fun createTodo(content: TodoContent): Todo =
-        translate { api.create(content.toDto()).toDomain() }
+        mapApiErrors { api.create(content.toDto()).toDomain() }
 
     override suspend fun editTodo(id: Long, content: TodoContent): Todo =
-        translate { api.edit(id, content.toDto()).toDomain() }
+        mapApiErrors { api.edit(id, content.toDto()).toDomain() }
 
     override suspend fun deleteTodo(id: Long) {
-        translate { api.delete(id) }
+        mapApiErrors { api.delete(id) }
     }
 
-    private suspend fun <T> translate(block: suspend () -> T): T = try {
+    private suspend fun <T> mapApiErrors(block: suspend () -> T): T = try {
         block()
     } catch (_: FakeNetworkException) {
         throw TodoFailure.Network()
     } catch (_: MissingTodoException) {
+        // In the app's sequential single-user flow, missing IDs are only expected after
+        // process death resets the fake server while navigation restores an old  ID.
         throw TodoFailure.NotFound()
     }
 
