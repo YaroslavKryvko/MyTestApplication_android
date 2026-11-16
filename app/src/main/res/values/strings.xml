@@ -1,3 +1,28 @@
 <resources>
     <string name="app_name">My Test Application</string>
+    <string name="todos">Todos</string>
+    <string name="create">Create</string>
+    <string name="no_todos">No todos yet</string>
+    <string name="network_error">Network error</string>
+    <string name="retry">Retry</string>
+    <string name="new_todo">New todo</string>
+    <string name="edit_todo">Edit todo</string>
+    <string name="back">Back</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="title">Title</string>
+    <string name="note">Note</string>
+    <string name="priority">Priority</string>
+    <string name="priority_low">Low</string>
+    <string name="priority_medium">Medium</string>
+    <string name="priority_high">High</string>
+    <string name="priority_value">Priority: %1$s</string>
+    <string name="completion_for">Completed: %1$s</string>
+    <string name="error_saving_todo">Error saving the todo</string>
+    <string name="error_deleting_todo">Error deleting the todo</string>
+    <string name="todo_not_found">Todo no longer exists</string>
+    <string name="discard_title">Discard changes?</string>
+    <string name="discard_message">Your unsaved changes will be lost.</string>
+    <string name="discard">Discard</string>
+    <string name="keep_editing">Keep editing</string>
 </resources>
